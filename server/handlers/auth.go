@@ -197,3 +197,89 @@ func generateToken(userID int64, username, role, status string) (string, error) 
 	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(config.C.JWTSecret))
 }
+
+func UpdateProfile(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+
+	var req struct {
+		NewUsername string `json:"new_username"`
+		NewPassword string `json:"new_password"`
+		OldPassword string `json:"old_password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "当前密码不能为空"})
+		return
+	}
+	if req.NewUsername == "" && req.NewPassword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有需要修改的内容"})
+		return
+	}
+
+	// 验证当前密码
+	var storedHash, currentUsername, role, status string
+	err := db.DB.QueryRow(
+		`SELECT password, username, role, status FROM users WHERE id = ?`, userID,
+	).Scan(&storedHash, &currentUsername, &role, &status)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "db error"})
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(req.OldPassword)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "当前密码错误"})
+		return
+	}
+
+	newUsername := currentUsername
+	if req.NewUsername != "" && req.NewUsername != currentUsername {
+		if len(req.NewUsername) < 2 || len(req.NewUsername) > 20 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "用户名长度须在 2~20 之间"})
+			return
+		}
+		var exists int
+		db.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE username = ? AND id != ?`, req.NewUsername, userID).Scan(&exists)
+		if exists > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "用户名已被占用"})
+			return
+		}
+		newUsername = req.NewUsername
+	}
+
+	newHash := storedHash
+	if req.NewPassword != "" {
+		if len(req.NewPassword) < 6 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "新密码至少 6 位"})
+			return
+		}
+		h, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
+			return
+		}
+		newHash = string(h)
+	}
+
+	_, err = db.DB.Exec(
+		`UPDATE users SET username = ?, password = ? WHERE id = ?`,
+		newUsername, newHash, userID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
+		return
+	}
+
+	// 生成新 token（用户名可能变了）
+	token, err := generateToken(userID.(int64), newUsername, role, status)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "token error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token": token,
+		"user": gin.H{
+			"id":       userID,
+			"username": newUsername,
+			"role":     role,
+		},
+	})
+}

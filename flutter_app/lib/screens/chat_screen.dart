@@ -10,6 +10,7 @@ import '../services/ws_service.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 import 'admin_screen.dart';
+import 'settings_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -22,12 +23,28 @@ class _ChatScreenState extends State<ChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   bool _uploading = false;
+  bool _hasMore = false;
+  bool _loadingMore = false;
 
   @override
   void initState() {
     super.initState();
     WsService.instance.connect();
     _listenWs();
+    _scroll.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    // 上拉到顶触发加载更多
+    if (_scroll.position.pixels <= 0 && _hasMore && !_loadingMore) {
+      _loadMoreHistory();
+    }
+  }
+
+  void _loadMoreHistory() {
+    if (_messages.isEmpty) return;
+    setState(() => _loadingMore = true);
+    WsService.instance.loadHistory(_messages.first.id);
   }
 
   void _listenWs() {
@@ -41,9 +58,33 @@ class _ChatScreenState extends State<ChatScreen> {
       switch (type) {
         case 'history':
           final msgs = (event['messages'] as List).cast<ChatMessage>();
-          setState(() { _messages.clear(); _messages.addAll(msgs); });
+          final hasMore = event['has_more'] as bool? ?? false;
+          setState(() {
+            _messages.clear();
+            _messages.addAll(msgs);
+            _hasMore = hasMore;
+          });
           WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(animate: false));
           break;
+
+        case 'history_page':
+          final msgs = (event['messages'] as List).cast<ChatMessage>();
+          final hasMore = event['has_more'] as bool? ?? false;
+          // 记住当前滚动高度，插入后保持位置不跳动
+          final oldExtent = _scroll.hasClients ? _scroll.position.maxScrollExtent : 0.0;
+          setState(() {
+            _messages.insertAll(0, msgs);
+            _hasMore = hasMore;
+            _loadingMore = false;
+          });
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_scroll.hasClients) {
+              final newExtent = _scroll.position.maxScrollExtent;
+              _scroll.jumpTo(newExtent - oldExtent);
+            }
+          });
+          break;
+
         case 'online_users':
           final users = (event['users'] as List?)?.map((u) => u['username'] as String).toList() ?? [];
           setState(() { _onlineUsers..clear()..addAll(users); });
@@ -137,18 +178,34 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _downloadFile(ChatMessage msg) async {
+    if (msg.fileExpired) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('文件已过期，无法下载'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
     try {
       final path = await ApiService.downloadFile(msg.content, msg.fileName!);
       await OpenFilex.open(path);
     } catch (e) {
+      final errStr = e.toString();
+      final isExpired = errStr.contains('410') || errStr.contains('file_expired');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('下载失败：$e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(isExpired ? '文件已过期，无法下载' : '下载失败：$e'),
+          backgroundColor: isExpired ? Colors.orange : Colors.red,
+        ),
       );
     }
   }
 
   @override
   void dispose() {
+    _scroll.removeListener(_onScroll);
     WsService.instance.disconnect();
     _input.dispose();
     _scroll.dispose();
@@ -165,6 +222,11 @@ class _ChatScreenState extends State<ChatScreen> {
         elevation: 0,
         title: const Text('群聊', style: TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.bold)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Color(0xFF1A1A1A)),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            tooltip: '设置',
+          ),
           if (me.isAdmin)
             IconButton(
               icon: const Icon(Icons.admin_panel_settings, color: Color(0xFF1A1A1A)),
@@ -174,12 +236,7 @@ class _ChatScreenState extends State<ChatScreen> {
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: Color(0xFF1A1A1A)),
             onSelected: (value) async {
-              if (value == 'logout') {
-                WsService.instance.disconnect();
-                await AuthService.logout();
-                if (!mounted) return;
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-              } else if (value == 'switch_server') {
+              if (value == 'logout' || value == 'switch_server') {
                 WsService.instance.disconnect();
                 await AuthService.logout();
                 if (!mounted) return;
@@ -213,18 +270,24 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-
           // Message list
           Expanded(
             child: ListView.builder(
               controller: _scroll,
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: _messages.length,
-              itemBuilder: (_, i) => _MessageTile(
-                msg: _messages[i],
-                isMe: _messages[i].userId == me.id,
-                onDownload: _downloadFile,
-              ),
+              itemCount: _messages.length + (_loadingMore || _hasMore ? 1 : 0),
+              itemBuilder: (_, i) {
+                // 顶部加载指示器
+                if (i == 0 && (_loadingMore || _hasMore)) {
+                  return _LoadMoreIndicator(loading: _loadingMore);
+                }
+                final msgIndex = (_loadingMore || _hasMore) ? i - 1 : i;
+                return _MessageTile(
+                  msg: _messages[msgIndex],
+                  isMe: _messages[msgIndex].userId == me.id,
+                  onDownload: _downloadFile,
+                );
+              },
             ),
           ),
           // Input bar
@@ -273,6 +336,26 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LoadMoreIndicator extends StatelessWidget {
+  final bool loading;
+  const _LoadMoreIndicator({required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: loading
+            ? const SizedBox(
+                width: 20, height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00B4A0)),
+              )
+            : const Text('上拉加载更多', style: TextStyle(fontSize: 12, color: Colors.grey)),
       ),
     );
   }
@@ -345,29 +428,48 @@ class _MessageTile extends StatelessWidget {
 
   Widget _fileContent(bool isMe) {
     final sizeKb = ((msg.fileSize ?? 0) / 1024).toStringAsFixed(1);
+    final expired = msg.fileExpired;
     final textColor = isMe ? Colors.white : const Color(0xFF1A1A1A);
     final subColor = isMe ? Colors.white70 : Colors.grey;
+    final expiredColor = isMe ? Colors.white54 : Colors.grey.shade400;
+
     return InkWell(
       onTap: () => onDownload(msg),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.insert_drive_file, color: subColor, size: 24),
+          Icon(
+            expired ? Icons.insert_drive_file_outlined : Icons.insert_drive_file,
+            color: expired ? expiredColor : subColor,
+            size: 24,
+          ),
           const SizedBox(width: 8),
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(msg.fileName ?? '文件',
-                    style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
-                    overflow: TextOverflow.ellipsis),
-                Text('$sizeKb KB',
-                    style: TextStyle(color: subColor, fontSize: 11)),
+                Text(
+                  msg.fileName ?? '文件',
+                  style: TextStyle(
+                    color: expired ? expiredColor : textColor,
+                    fontWeight: FontWeight.w500,
+                    decoration: expired ? TextDecoration.lineThrough : null,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  expired ? '文件已过期' : '$sizeKb KB',
+                  style: TextStyle(color: expired ? expiredColor : subColor, fontSize: 11),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Icon(Icons.download_rounded, color: subColor, size: 20),
+          Icon(
+            expired ? Icons.block : Icons.download_rounded,
+            color: expired ? expiredColor : subColor,
+            size: 18,
+          ),
         ],
       ),
     );

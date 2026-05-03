@@ -56,9 +56,13 @@ func WSHandler(c *gin.Context) {
 
 	hub.H.Register(client)
 
-	// Send history
-	history := loadHistory()
-	client.Send <- mustMarshal(models.WSMessage{Type: "history", Messages: history})
+	// Send initial history (newest 50, no before_id)
+	history, hasMore := loadHistory(0, config.C.HistoryLimit)
+	client.Send <- mustMarshal(models.WSMessage{
+		Type:     "history",
+		Messages: history,
+		HasMore:  hasMore,
+	})
 
 	// Send online users
 	client.Send <- mustMarshal(models.WSMessage{Type: "online_users", Users: hub.H.OnlineUsers()})
@@ -93,6 +97,8 @@ func readPump(client *hub.Client) {
 			handleTextMessage(client, cm)
 		case "send_file":
 			handleFileMessage(client, cm)
+		case "load_history":
+			handleLoadHistory(client, cm)
 		}
 	}
 }
@@ -141,24 +147,80 @@ func handleFileMessage(client *hub.Client, cm models.ClientMessage) {
 	hub.H.Broadcast(models.WSMessage{Type: "message", Message: &msg})
 }
 
-func loadHistory() []models.Message {
-	rows, err := db.DB.Query(
-		`SELECT id, user_id, username, type, content, COALESCE(file_name,''), COALESCE(file_size,0), created_at
-		 FROM messages ORDER BY created_at DESC LIMIT ?`,
-		config.C.HistoryLimit,
-	)
+// handleLoadHistory responds to a client's "load_history" request with older messages
+func handleLoadHistory(client *hub.Client, cm models.ClientMessage) {
+	if cm.BeforeID <= 0 {
+		return
+	}
+	msgs, hasMore := loadHistory(cm.BeforeID, config.C.HistoryLimit)
+	client.Send <- mustMarshal(models.WSMessage{
+		Type:     "history_page",
+		Messages: msgs,
+		HasMore:  hasMore,
+	})
+}
+
+// loadHistory fetches up to `limit` messages.
+// If beforeID > 0, fetches messages with id < beforeID (older messages).
+// If beforeID == 0, fetches the newest `limit` messages.
+// Returns messages in ascending order and whether more exist beyond this page.
+func loadHistory(beforeID int64, limit int) ([]models.Message, bool) {
+	// Fetch one extra to determine hasMore
+	fetchLimit := limit + 1
+
+	var rows interface {
+		Next() bool
+		Scan(...interface{}) error
+		Close() error
+	}
+	var err error
+
+	if beforeID > 0 {
+		rows, err = db.DB.Query(`
+			SELECT m.id, m.user_id, m.username, m.type, m.content,
+			       COALESCE(m.file_name,''), COALESCE(m.file_size,0), m.created_at,
+			       COALESCE(f.expired,0)
+			FROM messages m
+			LEFT JOIN files f ON f.stored_name = m.content AND m.type = 'file'
+			WHERE m.id < ?
+			ORDER BY m.id DESC
+			LIMIT ?`, beforeID, fetchLimit)
+	} else {
+		rows, err = db.DB.Query(`
+			SELECT m.id, m.user_id, m.username, m.type, m.content,
+			       COALESCE(m.file_name,''), COALESCE(m.file_size,0), m.created_at,
+			       COALESCE(f.expired,0)
+			FROM messages m
+			LEFT JOIN files f ON f.stored_name = m.content AND m.type = 'file'
+			ORDER BY m.id DESC
+			LIMIT ?`, fetchLimit)
+	}
 	if err != nil {
-		return nil
+		return nil, false
 	}
 	defer rows.Close()
 
-	msgs := []models.Message{}
+	var msgs []models.Message
 	for rows.Next() {
 		var m models.Message
-		rows.Scan(&m.ID, &m.UserID, &m.Username, &m.Type, &m.Content, &m.FileName, &m.FileSize, &m.CreatedAt)
-		msgs = append([]models.Message{m}, msgs...)
+		var expiredInt int
+		rows.Scan(&m.ID, &m.UserID, &m.Username, &m.Type, &m.Content,
+			&m.FileName, &m.FileSize, &m.CreatedAt, &expiredInt)
+		m.FileExpired = expiredInt == 1
+		msgs = append(msgs, m)
 	}
-	return msgs
+
+	hasMore := len(msgs) > limit
+	if hasMore {
+		msgs = msgs[:limit]
+	}
+
+	// Reverse to ascending order
+	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
+		msgs[i], msgs[j] = msgs[j], msgs[i]
+	}
+
+	return msgs, hasMore
 }
 
 func mustMarshal(v interface{}) []byte {

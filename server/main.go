@@ -65,6 +65,7 @@ func main() {
 	api := r.Group("/api", middleware.AuthRequired())
 	{
 		api.GET("/auth/me", handlers.Me)
+		api.PUT("/auth/profile", handlers.UpdateProfile)
 		api.POST("/files/upload", handlers.UploadFile)
 	}
 

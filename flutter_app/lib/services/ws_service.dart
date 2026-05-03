@@ -60,6 +60,10 @@ class WsService {
     });
   }
 
+  void loadHistory(int beforeId) {
+    _send({'type': 'load_history', 'before_id': beforeId});
+  }
+
   void _send(Map<String, dynamic> data) {
     if (_state == WsState.connected) {
       _channel?.sink.add(jsonEncode(data));
@@ -80,7 +84,13 @@ class WsService {
         final msgs = (data['messages'] as List? ?? [])
             .map((m) => ChatMessage.fromJson(m))
             .toList();
-        _eventController.add({'type': 'history', 'messages': msgs});
+        _eventController.add({'type': 'history', 'messages': msgs, 'has_more': data['has_more'] ?? false});
+        break;
+      case 'history_page':
+        final msgs = (data['messages'] as List? ?? [])
+            .map((m) => ChatMessage.fromJson(m))
+            .toList();
+        _eventController.add({'type': 'history_page', 'messages': msgs, 'has_more': data['has_more'] ?? false});
         break;
       default:
         _eventController.add(data);

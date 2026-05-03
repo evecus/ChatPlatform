@@ -13,7 +13,6 @@ import (
 var DB *sql.DB
 
 func Init() {
-	// Ensure directory exists
 	dir := filepath.Dir(config.C.DBPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Fatalf("failed to create db dir: %v", err)
@@ -55,6 +54,15 @@ func migrate() {
 		FOREIGN KEY (user_id) REFERENCES users(id)
 	);
 
+	CREATE TABLE IF NOT EXISTS files (
+		id            INTEGER PRIMARY KEY AUTOINCREMENT,
+		stored_name   TEXT    NOT NULL UNIQUE,
+		original_name TEXT    NOT NULL,
+		size          INTEGER NOT NULL,
+		expired       INTEGER NOT NULL DEFAULT 0,
+		created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
 	CREATE TABLE IF NOT EXISTS invite_codes (
 		id          INTEGER PRIMARY KEY AUTOINCREMENT,
 		code        TEXT    NOT NULL UNIQUE,
@@ -67,6 +75,7 @@ func migrate() {
 
 	CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 	CREATE INDEX IF NOT EXISTS idx_invite_codes_code   ON invite_codes(code);
+	CREATE INDEX IF NOT EXISTS idx_files_created_at    ON files(created_at);
 	`
 	if _, err := DB.Exec(schema); err != nil {
 		log.Fatalf("migration failed: %v", err)

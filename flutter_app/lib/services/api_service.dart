@@ -37,6 +37,24 @@ class ApiService {
 
   static String fileUrl(String fileId) => '${ServerConfig.baseUrl}/api/files/$fileId';
 
+  // ── Profile ────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> updateProfile({
+    String? newUsername,
+    String? newPassword,
+    required String oldPassword,
+  }) async {
+    final res = await _dio.put('/api/auth/profile',
+      data: {
+        if (newUsername != null && newUsername.isNotEmpty) 'new_username': newUsername,
+        if (newPassword != null && newPassword.isNotEmpty) 'new_password': newPassword,
+        'old_password': oldPassword,
+      },
+      options: _auth,
+    );
+    return res.data;
+  }
+
   // ── Admin ──────────────────────────────────────────────────────────────
 
   static Future<List<AdminUser>> adminGetUsers() async {

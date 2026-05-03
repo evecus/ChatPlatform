@@ -29,6 +29,7 @@ class ChatMessage {
   final String content;
   final String? fileName;
   final int? fileSize;
+  final bool fileExpired;
   final DateTime createdAt;
 
   const ChatMessage({
@@ -39,6 +40,7 @@ class ChatMessage {
     required this.content,
     this.fileName,
     this.fileSize,
+    this.fileExpired = false,
     required this.createdAt,
   });
 
@@ -52,6 +54,7 @@ class ChatMessage {
         content: j['content'] ?? '',
         fileName: j['file_name'],
         fileSize: j['file_size'],
+        fileExpired: j['file_expired'] == true,
         createdAt: DateTime.parse(j['created_at']).toLocal(),
       );
 }

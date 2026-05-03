@@ -82,4 +82,10 @@ class AuthService {
   }
 
   static bool get isLoggedIn => currentUser != null && token != null;
+
+  /// 修改用户名/密码成功后，用服务器返回的新 token 和用户信息更新本地状态
+  static Future<void> applyUpdatedProfile(String newToken, Map<String, dynamic> userJson) async {
+    await _saveToken(newToken);
+    currentUser = User.fromJson(userJson);
+  }
 }

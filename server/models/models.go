@@ -12,14 +12,24 @@ type User struct {
 }
 
 type Message struct {
-	ID        int64     `json:"id"`
-	UserID    int64     `json:"user_id"`
-	Username  string    `json:"username"`
-	Type      string    `json:"type"`      // "text" | "file"
-	Content   string    `json:"content"`   // text body or file download path
-	FileName  string    `json:"file_name"` // original filename (for file type)
-	FileSize  int64     `json:"file_size"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          int64     `json:"id"`
+	UserID      int64     `json:"user_id"`
+	Username    string    `json:"username"`
+	Type        string    `json:"type"`       // "text" | "file"
+	Content     string    `json:"content"`    // text body or stored file name
+	FileName    string    `json:"file_name"`  // original filename (for file type)
+	FileSize    int64     `json:"file_size"`
+	FileExpired bool      `json:"file_expired"` // true = file deleted from disk
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type File struct {
+	ID           int64     `json:"id"`
+	StoredName   string    `json:"stored_name"`
+	OriginalName string    `json:"original_name"`
+	Size         int64     `json:"size"`
+	Expired      bool      `json:"expired"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type InviteCode struct {
@@ -34,11 +44,12 @@ type InviteCode struct {
 type WSMessage struct {
 	Type string `json:"type"`
 
-	// type=message / file_message
+	// type=message
 	Message *Message `json:"message,omitempty"`
 
 	// type=history
 	Messages []Message `json:"messages,omitempty"`
+	HasMore  bool      `json:"has_more,omitempty"`
 
 	// type=user_joined / user_left
 	Username string `json:"username,omitempty"`
@@ -58,8 +69,9 @@ type OnlineUser struct {
 
 // Incoming WS message from client
 type ClientMessage struct {
-	Type     string `json:"type"`    // "send_message" | "send_file"
-	Content  string `json:"content"` // text or file_id
+	Type     string `json:"type"`     // "send_message" | "send_file" | "load_history"
+	Content  string `json:"content"`  // text or file_id
 	FileName string `json:"file_name"`
 	FileSize int64  `json:"file_size"`
+	BeforeID int64  `json:"before_id"` // for load_history pagination
 }
