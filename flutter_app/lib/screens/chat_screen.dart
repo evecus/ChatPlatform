@@ -163,21 +163,7 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: Row(
-          children: [
-            const Text('群聊', style: TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.bold)),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text('${_onlineUsers.length} 在线',
-                  style: const TextStyle(fontSize: 12, color: Colors.green)),
-            ),
-          ],
-        ),
+        title: const Text('群聊', style: TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.bold)),
         actions: [
           if (me.isAdmin)
             IconButton(
@@ -227,27 +213,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // Online users bar
-          if (_onlineUsers.isNotEmpty)
-            Container(
-              height: 36,
-              color: const Color(0xFFF5F5F5),
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: _onlineUsers.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, i) => Center(
-                  child: Chip(
-                    avatar: const CircleAvatar(backgroundColor: Colors.green, radius: 4),
-                    label: Text(_onlineUsers[i], style: const TextStyle(fontSize: 11, color: Color(0xFF1A1A1A))),
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    backgroundColor: const Color(0xFFEEEEEE),
-                  ),
-                ),
-              ),
-            ),
+
           // Message list
           Expanded(
             child: ListView.builder(
@@ -333,10 +299,13 @@ class _MessageTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            if (!isMe)
+            if (!isMe || msg.isFile)
               Padding(
-                padding: const EdgeInsets.only(left: 4, bottom: 2),
-                child: Text(msg.username, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                padding: const EdgeInsets.only(left: 4, right: 4, bottom: 2),
+                child: Text(
+                  isMe ? '我' : msg.username,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
               ),
             GestureDetector(
               onLongPress: msg.isFile ? null : () {
@@ -383,7 +352,7 @@ class _MessageTile extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.insert_drive_file, color: subColor, size: 20),
+          Icon(Icons.insert_drive_file, color: subColor, size: 24),
           const SizedBox(width: 8),
           Flexible(
             child: Column(
@@ -392,11 +361,13 @@ class _MessageTile extends StatelessWidget {
                 Text(msg.fileName ?? '文件',
                     style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis),
-                Text('$sizeKb KB · 点击打开',
+                Text('$sizeKb KB',
                     style: TextStyle(color: subColor, fontSize: 11)),
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          Icon(Icons.download_rounded, color: subColor, size: 20),
         ],
       ),
     );
