@@ -20,6 +20,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+          cache-dependency-path: server/go.mod
 
       - name: Build binary
         working-directory: server
@@ -28,7 +29,7 @@ jobs:
           GOARCH: amd64
           CGO_ENABLED: 0
         run: |
-          go mod download
+          go mod tidy
           go build -ldflags="-s -w" -o chat-server .
 
       - name: Upload artifact
@@ -55,8 +56,8 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
           channel: 'stable'
+          cache: true
 
       - name: Decode keystore
         working-directory: flutter_app
