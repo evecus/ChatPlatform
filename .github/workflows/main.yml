@@ -53,14 +53,23 @@ jobs:
 
   # ────────────────────────────────────────────
   # Build & push multi-arch Docker image
+  # Reuses pre-built binaries from build-server,
+  # no Go compilation inside Docker.
   # ────────────────────────────────────────────
   build-docker:
     name: Build & Push Docker Image
+    needs: build-server
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Enable QEMU so buildx can cross-compile arm64 on amd64 runners
+      # Download the two binaries built above
+      - name: Download server binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: chatwave-server
+          path: server/
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -73,29 +82,49 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract version (strip leading v)
-        id: version
-        run: |
-          TAG="${{ github.event.inputs.tag }}"
-          echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
-
-      # Build once, push linux/amd64 + linux/arm64 in one layer cache pass
-      - name: Build and push
+      # Build amd64 image: rename binary → chatwave-server, then build
+      - name: Build and push amd64
         uses: docker/build-push-action@v5
         with:
           context: ./server
           file: ./server/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
+          build-args: ARCH=amd64
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/chatwave-server:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/chatwave-server:${{ steps.version.outputs.tag }}
-          # Embed version label into the image
-          build-args: |
-            VERSION=${{ steps.version.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ secrets.DOCKERHUB_USERNAME }}/chatwave-server:latest-amd64
+            ${{ secrets.DOCKERHUB_USERNAME }}/chatwave-server:${{ github.event.inputs.tag }}-amd64
+          # Rename the arch-specific binary to the generic name expected by Dockerfile
+          # We use a pre-step below instead of build-arg for simplicity
+
+      # Build arm64 image
+      - name: Build and push arm64
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          platforms: linux/arm64
+          push: true
+          build-args: ARCH=arm64
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/chatwave-server:latest-arm64
+            ${{ secrets.DOCKERHUB_USERNAME }}/chatwave-server:${{ github.event.inputs.tag }}-arm64
+
+      # Combine both into a single manifest so users just do: docker pull xxx/chatwave-server:latest
+      - name: Create and push multi-arch manifest
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          USER="${{ secrets.DOCKERHUB_USERNAME }}"
+
+          docker buildx imagetools create \
+            --tag ${USER}/chatwave-server:${TAG} \
+            ${USER}/chatwave-server:${TAG}-amd64 \
+            ${USER}/chatwave-server:${TAG}-arm64
+
+          docker buildx imagetools create \
+            --tag ${USER}/chatwave-server:latest \
+            ${USER}/chatwave-server:${TAG}-amd64 \
+            ${USER}/chatwave-server:${TAG}-arm64
 
   # ────────────────────────────────────────────
   # Build Flutter APK (release + signed)
@@ -201,15 +230,14 @@ jobs:
           body: |
             ## ChatWave ${{ github.event.inputs.tag }}
 
-            ### Docker
+            ### Docker（支持 amd64 / arm64）
             ```bash
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/chatwave-server:${{ github.event.inputs.tag }}
-            # or
+            # 或直接用 latest
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/chatwave-server:latest
             ```
-            Supports: `linux/amd64`, `linux/arm64`
 
             ### 直接运行二进制
-            下载对应架构的二进制文件，`chmod +x` 后直接运行。
+            下载对应架构的文件，`chmod +x` 后运行即可。
           files: artifacts/**
           generate_release_notes: true
