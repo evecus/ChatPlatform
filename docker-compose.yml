@@ -1,16 +1,14 @@
 version: '3.9'
 
 services:
-  chat:
-    image: chat-server:latest
-    build:
-      context: ./server
-      dockerfile: Dockerfile
+  chatwave:
+    # Replace YOUR_DOCKERHUB_USERNAME with your Docker Hub username
+    image: YOUR_DOCKERHUB_USERNAME/chatwave-server:latest
     restart: unless-stopped
     ports:
       - "8080:8080"
     volumes:
-      - chat_data:/app/data
+      - chatwave_data:/app/data
     environment:
       - PORT=8080
       - JWT_SECRET=${JWT_SECRET}
@@ -20,4 +18,4 @@ services:
       - HISTORY_LIMIT=50
 
 volumes:
-  chat_data:
+  chatwave_data:
