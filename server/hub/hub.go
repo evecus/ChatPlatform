@@ -2,7 +2,6 @@ package hub
 
 import (
 	"encoding/json"
-	"log"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -115,7 +114,6 @@ func (c *Client) WritePump() {
 	defer c.Conn.Close()
 	for data := range c.Send {
 		if err := c.Conn.WriteMessage(websocket.TextMessage, data); err != nil {
-			log.Printf("write error for %s: %v", c.Username, err)
 			return
 		}
 	}

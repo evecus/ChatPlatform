@@ -30,7 +30,6 @@ func Init() {
 	}
 
 	migrate()
-	log.Println("Database initialized")
 }
 
 func migrate() {

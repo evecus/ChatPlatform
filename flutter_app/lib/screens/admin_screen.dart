@@ -28,7 +28,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
       final codes = await ApiService.adminGetCodes();
       setState(() { _users = users; _codes = codes; });
     } catch (e) {
-      _snack('Load failed: $e', error: true);
+      _snack('加载失败：$e', error: true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -38,54 +38,54 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
     try {
       final code = await ApiService.adminCreateCode();
       await Clipboard.setData(ClipboardData(text: code));
-      _snack('Code: $code (copied to clipboard)');
+      _snack('邀请码：$code（已复制到剪贴板）');
       _load();
     } catch (e) {
-      _snack('Failed: $e', error: true);
+      _snack('操作失败：$e', error: true);
     }
   }
 
   Future<void> _banUser(AdminUser u) async {
-    final confirm = await _confirm('Ban ${u.username}?', 'They will be disconnected immediately.');
+    final confirm = await _confirm('封禁 ${u.username}？', '用户将被立即断开连接。');
     if (!confirm) return;
     try {
       await ApiService.adminBanUser(u.id);
-      _snack('${u.username} banned');
+      _snack('${u.username} 已封禁');
       _load();
     } catch (e) {
-      _snack('Failed: $e', error: true);
+      _snack('操作失败：$e', error: true);
     }
   }
 
   Future<void> _unbanUser(AdminUser u) async {
     try {
       await ApiService.adminUnbanUser(u.id);
-      _snack('${u.username} unbanned');
+      _snack('${u.username} 已解封');
       _load();
     } catch (e) {
-      _snack('Failed: $e', error: true);
+      _snack('操作失败：$e', error: true);
     }
   }
 
   Future<void> _kickUser(AdminUser u) async {
     try {
       await ApiService.adminKickUser(u.id);
-      _snack('${u.username} kicked');
+      _snack('${u.username} 已踢出');
       _load();
     } catch (e) {
-      _snack('Failed: $e', error: true);
+      _snack('操作失败：$e', error: true);
     }
   }
 
   Future<void> _deleteUser(AdminUser u) async {
-    final confirm = await _confirm('Delete ${u.username}?', 'This cannot be undone.');
+    final confirm = await _confirm('删除 ${u.username}？', '此操作不可撤销。');
     if (!confirm) return;
     try {
       await ApiService.adminDeleteUser(u.id);
-      _snack('${u.username} deleted');
+      _snack('${u.username} 已删除');
       _load();
     } catch (e) {
-      _snack('Failed: $e', error: true);
+      _snack('操作失败：$e', error: true);
     }
   }
 
@@ -96,10 +96,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             title: Text(title),
             content: Text(content),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Confirm', style: TextStyle(color: Colors.red)),
+                child: const Text('确认', style: TextStyle(color: Colors.red)),
               ),
             ],
           ),
@@ -116,18 +116,24 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Admin Panel'),
+        backgroundColor: Colors.white,
+        title: const Text('管理面板', style: TextStyle(color: Color(0xFF1A1A1A))),
+        iconTheme: const IconThemeData(color: Color(0xFF1A1A1A)),
         bottom: TabBar(
           controller: _tab,
-          tabs: const [Tab(text: 'Users'), Tab(text: 'Invite Codes')],
+          tabs: const [Tab(text: '用户管理'), Tab(text: '邀请码')],
+          indicatorColor: const Color(0xFF00B4A0),
+          labelColor: const Color(0xFF00B4A0),
+          unselectedLabelColor: Colors.grey,
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+          IconButton(icon: const Icon(Icons.refresh, color: Color(0xFF1A1A1A)), onPressed: _load),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00B4A0)))
           : TabBarView(
               controller: _tab,
               children: [_usersTab(), _codesTab()],
@@ -136,7 +142,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
   }
 
   Widget _usersTab() {
-    if (_users.isEmpty) return const Center(child: Text('No users'));
+    if (_users.isEmpty) return const Center(child: Text('暂无用户'));
     return ListView.builder(
       itemCount: _users.length,
       itemBuilder: (_, i) {
@@ -149,11 +155,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
           ),
           title: Text(u.username),
           subtitle: Text(
-            '${u.role} · ${isBanned ? "BANNED" : u.online ? "online" : "offline"}',
+            '${u.role} · ${isBanned ? "已封禁" : u.online ? "在线" : "离线"}',
             style: TextStyle(color: isBanned ? Colors.red : u.online ? Colors.green : Colors.grey),
           ),
           trailing: u.role == 'admin'
-              ? const Chip(label: Text('admin'))
+              ? const Chip(label: Text('管理员'))
               : PopupMenuButton<String>(
                   onSelected: (action) {
                     switch (action) {
@@ -164,10 +170,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                     }
                   },
                   itemBuilder: (_) => [
-                    if (u.online) const PopupMenuItem(value: 'kick', child: Text('Kick')),
-                    if (!isBanned) const PopupMenuItem(value: 'ban', child: Text('Ban', style: TextStyle(color: Colors.orange))),
-                    if (isBanned)  const PopupMenuItem(value: 'unban', child: Text('Unban', style: TextStyle(color: Colors.green))),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: Colors.red))),
+                    if (u.online) const PopupMenuItem(value: 'kick', child: Text('踢出')),
+                    if (!isBanned) const PopupMenuItem(value: 'ban', child: Text('封禁', style: TextStyle(color: Colors.orange))),
+                    if (isBanned)  const PopupMenuItem(value: 'unban', child: Text('解封', style: TextStyle(color: Colors.green))),
+                    const PopupMenuItem(value: 'delete', child: Text('删除', style: TextStyle(color: Colors.red))),
                   ],
                 ),
         );
@@ -185,9 +191,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
             child: ElevatedButton.icon(
               onPressed: _createCode,
               icon: const Icon(Icons.add),
-              label: const Text('Generate Invite Code'),
+              label: const Text('生成邀请码'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A73E8),
+                backgroundColor: const Color(0xFF00B4A0),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
@@ -203,7 +209,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                 leading: Icon(c.used ? Icons.check_circle : Icons.vpn_key,
                     color: c.used ? Colors.grey : Colors.green),
                 title: Text(c.code, style: const TextStyle(fontFamily: 'monospace', letterSpacing: 2)),
-                subtitle: Text(c.used ? 'Used by: ${c.usedBy}' : 'Available'),
+                subtitle: Text(c.used ? '已使用：${c.usedBy}' : '可用'),
                 trailing: !c.used
                     ? Row(
                         mainAxisSize: MainAxisSize.min,
@@ -212,7 +218,7 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
                             icon: const Icon(Icons.copy, size: 18),
                             onPressed: () {
                               Clipboard.setData(ClipboardData(text: c.code));
-                              _snack('Code copied');
+                              _snack('邀请码已复制');
                             },
                           ),
                           IconButton(

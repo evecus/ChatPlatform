@@ -58,10 +58,10 @@ class _ChatScreenState extends State<ChatScreen> {
           setState(() => _onlineUsers.remove(u));
           break;
         case 'kicked':
-          _forceLogout('You were removed by admin.');
+          _forceLogout('您已被管理员移出聊天室。');
           break;
         case 'banned':
-          _forceLogout('Your account has been banned.');
+          _forceLogout('您的账号已被封禁。');
           break;
       }
     });
@@ -75,7 +75,7 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
-        title: const Text('Account Action'),
+        title: const Text('账号通知'),
         content: Text(reason),
         actions: [
           TextButton(
@@ -83,7 +83,7 @@ class _ChatScreenState extends State<ChatScreen> {
               Navigator.of(context).pop();
               Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
             },
-            child: const Text('OK'),
+            child: const Text('确定'),
           ),
         ],
       ),
@@ -118,7 +118,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final size = await file.length();
     if (size > 10 * 1024 * 1024) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File too large (max 10MB)'), backgroundColor: Colors.red),
+        const SnackBar(content: Text('文件过大（最大 10MB）'), backgroundColor: Colors.red),
       );
       return;
     }
@@ -129,7 +129,7 @@ class _ChatScreenState extends State<ChatScreen> {
       WsService.instance.sendFile(data['file_id'], data['original_name'], data['size']);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('上传失败：$e'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -142,7 +142,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await OpenFilex.open(path);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Download failed: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('下载失败：$e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -159,18 +159,21 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final me = AuthService.currentUser!;
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
         title: Row(
           children: [
-            const Text('Group Chat'),
+            const Text('群聊', style: TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.bold)),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.2),
+                color: Colors.green.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text('${_onlineUsers.length} online',
+              child: Text('${_onlineUsers.length} 在线',
                   style: const TextStyle(fontSize: 12, color: Colors.green)),
             ),
           ],
@@ -178,12 +181,12 @@ class _ChatScreenState extends State<ChatScreen> {
         actions: [
           if (me.isAdmin)
             IconButton(
-              icon: const Icon(Icons.admin_panel_settings),
+              icon: const Icon(Icons.admin_panel_settings, color: Color(0xFF1A1A1A)),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminScreen())),
-              tooltip: 'Admin Panel',
+              tooltip: '管理面板',
             ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
+            icon: const Icon(Icons.more_vert, color: Color(0xFF1A1A1A)),
             onSelected: (value) async {
               if (value == 'logout') {
                 WsService.instance.disconnect();
@@ -203,7 +206,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Row(children: [
                   Icon(Icons.dns_rounded, size: 18),
                   SizedBox(width: 10),
-                  Text('Switch Server'),
+                  Text('切换服务器'),
                 ]),
               ),
               const PopupMenuItem(
@@ -211,12 +214,16 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Row(children: [
                   Icon(Icons.logout, size: 18),
                   SizedBox(width: 10),
-                  Text('Logout'),
+                  Text('退出登录'),
                 ]),
               ),
             ],
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: const Color(0xFFE0E0E0), height: 1),
+        ),
       ),
       body: Column(
         children: [
@@ -224,7 +231,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (_onlineUsers.isNotEmpty)
             Container(
               height: 36,
-              color: const Color(0xFF1A1A1A),
+              color: const Color(0xFFF5F5F5),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -233,10 +240,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 itemBuilder: (_, i) => Center(
                   child: Chip(
                     avatar: const CircleAvatar(backgroundColor: Colors.green, radius: 4),
-                    label: Text(_onlineUsers[i], style: const TextStyle(fontSize: 11)),
+                    label: Text(_onlineUsers[i], style: const TextStyle(fontSize: 11, color: Color(0xFF1A1A1A))),
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
-                    backgroundColor: const Color(0xFF2A2A2A),
+                    backgroundColor: const Color(0xFFEEEEEE),
                   ),
                 ),
               ),
@@ -256,8 +263,11 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           // Input bar
           Container(
-            color: const Color(0xFF1A1A1A),
+            color: Colors.white,
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: Color(0xFFE0E0E0))),
+            ),
             child: SafeArea(
               top: false,
               child: Row(
@@ -265,7 +275,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   IconButton(
                     icon: _uploading
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.attach_file),
+                        : const Icon(Icons.attach_file, color: Color(0xFF666666)),
                     onPressed: _uploading ? null : _pickAndSendFile,
                   ),
                   Expanded(
@@ -274,11 +284,12 @@ class _ChatScreenState extends State<ChatScreen> {
                       maxLines: null,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _sendText(),
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: Color(0xFF1A1A1A)),
                       decoration: InputDecoration(
-                        hintText: 'Message...',
+                        hintText: '发送消息...',
+                        hintStyle: const TextStyle(color: Colors.grey),
                         filled: true,
-                        fillColor: const Color(0xFF2A2A2A),
+                        fillColor: const Color(0xFFF0F0F0),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide.none,
@@ -288,7 +299,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.send, color: Color(0xFF1A73E8)),
+                    icon: const Icon(Icons.send, color: Color(0xFF00B4A0)),
                     onPressed: _sendText,
                   ),
                 ],
@@ -331,13 +342,13 @@ class _MessageTile extends StatelessWidget {
               onLongPress: msg.isFile ? null : () {
                 Clipboard.setData(ClipboardData(text: msg.content));
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Copied'), duration: Duration(seconds: 1)),
+                  const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)),
                 );
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isMe ? const Color(0xFF1A73E8) : const Color(0xFF2A2A2A),
+                  color: isMe ? const Color(0xFF00B4A0) : const Color(0xFFF0F0F0),
                   borderRadius: BorderRadius.only(
                     topLeft: const Radius.circular(16),
                     topRight: const Radius.circular(16),
@@ -345,7 +356,7 @@ class _MessageTile extends StatelessWidget {
                     bottomRight: Radius.circular(isMe ? 4 : 16),
                   ),
                 ),
-                child: msg.isFile ? _fileContent() : _textContent(),
+                child: msg.isFile ? _fileContent(isMe) : _textContent(isMe),
               ),
             ),
             Padding(
@@ -358,26 +369,31 @@ class _MessageTile extends StatelessWidget {
     );
   }
 
-  Widget _textContent() => Text(msg.content, style: const TextStyle(color: Colors.white));
+  Widget _textContent(bool isMe) => Text(
+    msg.content,
+    style: TextStyle(color: isMe ? Colors.white : const Color(0xFF1A1A1A)),
+  );
 
-  Widget _fileContent() {
+  Widget _fileContent(bool isMe) {
     final sizeKb = ((msg.fileSize ?? 0) / 1024).toStringAsFixed(1);
+    final textColor = isMe ? Colors.white : const Color(0xFF1A1A1A);
+    final subColor = isMe ? Colors.white70 : Colors.grey;
     return InkWell(
       onTap: () => onDownload(msg),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.insert_drive_file, color: Colors.white70, size: 20),
+          Icon(Icons.insert_drive_file, color: subColor, size: 20),
           const SizedBox(width: 8),
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(msg.fileName ?? 'file',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                Text(msg.fileName ?? '文件',
+                    style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis),
-                Text('$sizeKb KB · tap to open',
-                    style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                Text('$sizeKb KB · 点击打开',
+                    style: TextStyle(color: subColor, fontSize: 11)),
               ],
             ),
           ),

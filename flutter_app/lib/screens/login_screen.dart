@@ -13,16 +13,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   late TabController _tab;
   bool _loading = false;
   bool _testingServer = false;
-  String? _serverStatus; // null = untested, 'ok', 'error'
+  String? _serverStatus;
 
-  // Server
   final _serverCtrl = TextEditingController(text: ServerConfig.address);
-
-  // Login
   final _loginUser = TextEditingController();
   final _loginPass = TextEditingController();
-
-  // Register
   final _regUser = TextEditingController();
   final _regPass = TextEditingController();
   final _regCode = TextEditingController();
@@ -31,7 +26,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
-    // If server is already configured, mark as ok without re-testing
     if (ServerConfig.isConfigured) _serverStatus = 'ok';
   }
 
@@ -45,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   Future<void> _testAndSaveServer() async {
     final addr = _serverCtrl.text.trim();
     if (addr.isEmpty) {
-      _showError('Please enter a server address');
+      _showError('请输入服务器地址');
       return;
     }
     setState(() { _testingServer = true; _serverStatus = null; });
@@ -59,9 +53,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       await dio.get('/health');
       setState(() { _serverStatus = 'ok'; });
     } catch (_) {
-      // Connection failed — still save the address but warn the user
       setState(() { _serverStatus = 'error'; });
-      _showError('Cannot reach server — check address and try again');
+      _showError('无法连接到服务器，请检查地址后重试');
     } finally {
       setState(() { _testingServer = false; });
     }
@@ -75,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       if (!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ChatScreen()));
     } on DioException catch (e) {
-      _showError(e.response?.data['error'] ?? 'Login failed');
+      _showError(e.response?.data['error'] ?? '登录失败');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -93,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       if (!mounted) return;
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ChatScreen()));
     } on DioException catch (e) {
-      _showError(e.response?.data['error'] ?? 'Registration failed');
+      _showError(e.response?.data['error'] ?? '注册失败');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -101,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   bool _ensureServer() {
     if (!ServerConfig.isConfigured) {
-      _showError('Please configure a server address first');
+      _showError('请先配置服务器地址');
       return false;
     }
     return true;
@@ -116,6 +109,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -126,27 +120,28 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 32),
-                  const Icon(Icons.chat_bubble_rounded, size: 64, color: Color(0xFF1A73E8)),
+                  const Icon(Icons.chat_bubble_rounded, size: 64, color: Color(0xFF00B4A0)),
                   const SizedBox(height: 16),
-                  const Text('Chat', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  const Text('ChatWave', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
                   const SizedBox(height: 24),
 
-                  // ── Server address ──────────────────────────────────────
                   _serverCard(),
                   const SizedBox(height: 16),
 
-                  // ── Login / Register ────────────────────────────────────
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A1A),
+                      color: const Color(0xFFF8F8F8),
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE0E0E0)),
                     ),
                     child: Column(
                       children: [
                         TabBar(
                           controller: _tab,
-                          tabs: const [Tab(text: 'Login'), Tab(text: 'Register')],
-                          indicatorColor: const Color(0xFF1A73E8),
+                          tabs: const [Tab(text: '登录'), Tab(text: '注册')],
+                          indicatorColor: const Color(0xFF00B4A0),
+                          labelColor: const Color(0xFF00B4A0),
+                          unselectedLabelColor: Colors.grey,
                         ),
                         SizedBox(
                           height: 260,
@@ -171,14 +166,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: const Color(0xFFF8F8F8),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _serverStatus == 'ok'
               ? Colors.green.withOpacity(0.6)
               : _serverStatus == 'error'
                   ? Colors.red.withOpacity(0.6)
-                  : Colors.white12,
+                  : const Color(0xFFE0E0E0),
           width: 1,
         ),
       ),
@@ -187,21 +182,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         children: [
           Row(
             children: [
-              const Icon(Icons.dns_rounded, size: 16, color: Colors.white54),
+              const Icon(Icons.dns_rounded, size: 16, color: Colors.grey),
               const SizedBox(width: 6),
-              const Text('Server', style: TextStyle(color: Colors.white54, fontSize: 13)),
+              const Text('服务器', style: TextStyle(color: Colors.grey, fontSize: 13)),
               const Spacer(),
               if (_serverStatus == 'ok')
                 Row(children: const [
                   Icon(Icons.check_circle, size: 14, color: Colors.green),
                   SizedBox(width: 4),
-                  Text('Connected', style: TextStyle(color: Colors.green, fontSize: 12)),
+                  Text('已连接', style: TextStyle(color: Colors.green, fontSize: 12)),
                 ]),
               if (_serverStatus == 'error')
                 Row(children: const [
                   Icon(Icons.error_outline, size: 14, color: Colors.red),
                   SizedBox(width: 4),
-                  Text('Unreachable', style: TextStyle(color: Colors.red, fontSize: 12)),
+                  Text('无法连接', style: TextStyle(color: Colors.red, fontSize: 12)),
                 ]),
             ],
           ),
@@ -211,15 +206,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               Expanded(
                 child: TextField(
                   controller: _serverCtrl,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 14),
                   keyboardType: TextInputType.url,
                   autocorrect: false,
                   onSubmitted: (_) => _testAndSaveServer(),
                   decoration: InputDecoration(
-                    hintText: '192.168.1.10:8080  or  chat.example.com',
-                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                    hintText: '192.168.1.10:8080 或 chat.example.com',
+                    hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
                     filled: true,
-                    fillColor: const Color(0xFF2A2A2A),
+                    fillColor: const Color(0xFFEEEEEE),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -234,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 child: ElevatedButton(
                   onPressed: _testingServer ? null : _testAndSaveServer,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2A3A5A),
+                    backgroundColor: const Color(0xFF00B4A0),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -242,15 +237,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   child: _testingServer
                       ? const SizedBox(width: 16, height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Test', style: TextStyle(fontSize: 13)),
+                      : const Text('测试', style: TextStyle(fontSize: 13)),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 6),
           const Text(
-            'Enter IP:port or domain. http:// is added automatically.',
-            style: TextStyle(color: Colors.white30, fontSize: 11),
+            '输入 IP:端口 或域名，自动补全 http://',
+            style: TextStyle(color: Colors.grey, fontSize: 11),
           ),
         ],
       ),
@@ -262,11 +257,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          _field(_loginUser, 'Username', Icons.person),
+          _field(_loginUser, '用户名', Icons.person),
           const SizedBox(height: 12),
-          _field(_loginPass, 'Password', Icons.lock, obscure: true),
+          _field(_loginPass, '密码', Icons.lock, obscure: true),
           const Spacer(),
-          _button('Login', _login),
+          _button('登录', _login),
         ],
       ),
     );
@@ -277,13 +272,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          _field(_regUser, 'Username', Icons.person),
+          _field(_regUser, '用户名', Icons.person),
           const SizedBox(height: 8),
-          _field(_regPass, 'Password (min 6)', Icons.lock, obscure: true),
+          _field(_regPass, '密码（至少6位）', Icons.lock, obscure: true),
           const SizedBox(height: 8),
-          _field(_regCode, 'Invite Code', Icons.vpn_key),
+          _field(_regCode, '邀请码', Icons.vpn_key),
           const Spacer(),
-          _button('Register', _register),
+          _button('注册', _register),
         ],
       ),
     );
@@ -293,12 +288,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     return TextField(
       controller: c,
       obscureText: obscure,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: Color(0xFF1A1A1A)),
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, size: 18),
+        hintStyle: const TextStyle(color: Colors.grey),
+        prefixIcon: Icon(icon, size: 18, color: Colors.grey),
         filled: true,
-        fillColor: const Color(0xFF2A2A2A),
+        fillColor: const Color(0xFFEEEEEE),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
         contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
       ),
@@ -311,7 +307,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       child: ElevatedButton(
         onPressed: _loading ? null : onTap,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1A73E8),
+          backgroundColor: const Color(0xFF00B4A0),
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

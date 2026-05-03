@@ -19,12 +19,11 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins; restrict in production if needed
+		return true
 	},
 }
 
 func WSHandler(c *gin.Context) {
-	// Auth via query param token
 	token := c.Query("token")
 	if token == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
@@ -56,7 +55,6 @@ func WSHandler(c *gin.Context) {
 	}
 
 	hub.H.Register(client)
-	log.Printf("User %s connected", claims.Username)
 
 	// Send history
 	history := loadHistory()
@@ -77,7 +75,6 @@ func readPump(client *hub.Client) {
 		hub.H.Unregister(client)
 		client.Conn.Close()
 		hub.H.Broadcast(models.WSMessage{Type: "user_left", Username: client.Username, UserID: client.UserID})
-		log.Printf("User %s disconnected", client.Username)
 	}()
 
 	for {
@@ -159,7 +156,7 @@ func loadHistory() []models.Message {
 	for rows.Next() {
 		var m models.Message
 		rows.Scan(&m.ID, &m.UserID, &m.Username, &m.Type, &m.Content, &m.FileName, &m.FileSize, &m.CreatedAt)
-		msgs = append([]models.Message{m}, msgs...) // reverse to chronological
+		msgs = append([]models.Message{m}, msgs...)
 	}
 	return msgs
 }
