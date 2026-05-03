@@ -1,0 +1,23 @@
+version: '3.9'
+
+services:
+  chat:
+    image: chat-server:latest
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - chat_data:/app/data
+    environment:
+      - PORT=8080
+      - JWT_SECRET=${JWT_SECRET}
+      - DB_PATH=/app/data/chat.db
+      - UPLOAD_DIR=/app/data/uploads
+      - MAX_FILE_SIZE_MB=10
+      - HISTORY_LIMIT=50
+
+volumes:
+  chat_data:
