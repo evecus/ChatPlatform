@@ -1,12 +1,14 @@
 package middleware
 
 import (
+	"database/sql"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/yourname/chat-platform/config"
+	"github.com/yourname/chat-platform/db"
 )
 
 type Claims struct {
@@ -29,14 +31,28 @@ func AuthRequired() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
-		if claims.Status == "banned" {
+
+		// Always query DB for current status — Token cache is not enough
+		// (a banned user's Token stays valid for 30 days otherwise)
+		var status string
+		err = db.DB.QueryRow(`SELECT status FROM users WHERE id = ?`, claims.UserID).Scan(&status)
+		if err == sql.ErrNoRows {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+			return
+		}
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "db error"})
+			return
+		}
+		if status == "banned" {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "account banned"})
 			return
 		}
+
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
 		c.Set("role", claims.Role)
-		c.Set("status", claims.Status)
+		c.Set("status", status)
 		c.Next()
 	}
 }
@@ -61,10 +77,8 @@ func ParseToken(tokenStr string) (*Claims, error) {
 }
 
 func extractToken(c *gin.Context) string {
-	// Header: Authorization: Bearer <token>
 	if h := c.GetHeader("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		return strings.TrimPrefix(h, "Bearer ")
 	}
-	// Query param: ?token=<token>  (for WebSocket handshake)
 	return c.Query("token")
 }
