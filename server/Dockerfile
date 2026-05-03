@@ -1,15 +1,18 @@
-# No build stage needed — binary is pre-built by CI and copied directly in.
+# Pre-built binary is downloaded from CI artifacts and passed via build context.
+# Build with: --build-arg ARCH=amd64  or  --build-arg ARCH=arm64
 FROM alpine:3.19
+
+ARG ARCH=amd64
 
 RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
 
-# The binary is passed in via build context (CI downloads artifact first)
-# Expected: chatwave-server-amd64 or chatwave-server-arm64 → renamed to chatwave-server
-COPY chatwave-server .
+# Copy the arch-specific binary and rename it to a fixed name
+COPY chatwave-server-${ARCH} ./chatwave-server
 
-RUN mkdir -p /app/data/uploads
+RUN chmod +x /app/chatwave-server && \
+    mkdir -p /app/data/uploads
 
 EXPOSE 8080
 
